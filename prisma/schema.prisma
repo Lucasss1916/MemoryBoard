@@ -1,0 +1,109 @@
+// 留言板 / 时间胶囊 / 纪念日 数据模型
+// 数据库：PostgreSQL（由 docker compose 提供）
+
+generator client {
+  provider      = "prisma-client-js"
+  // native = 本机开发；linux-musl = Docker(alpine) 运行时
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // bcrypt 哈希
+  avatarUrl String?  // 头像，和留言图片一样存 /uploads/xxx
+  widgetToken String? @unique // 小组件只读接口的访问令牌
+  createdAt DateTime @default(now())
+
+  memberships  BoardMember[]
+  messages     Message[]
+  capsules     TimeCapsule[]
+  ownedBoards  Board[]        @relation("BoardOwner")
+}
+
+// 留言板：一个空间，带身份类型（恋人/家人/朋友等）
+model Board {
+  id         String   @id @default(cuid())
+  name       String
+  // 身份类型：LOVER / FAMILY / FRIEND / OTHER
+  kind       String   @default("OTHER")
+  inviteCode String   @unique
+  ownerId    String
+  createdAt  DateTime @default(now())
+
+  owner        User          @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members      BoardMember[]
+  messages     Message[]
+  capsules     TimeCapsule[]
+  anniversaries Anniversary[]
+}
+
+// 成员关系：决定谁能看某个留言板
+model BoardMember {
+  id       String   @id @default(cuid())
+  boardId  String
+  userId   String
+  // 成员角色：OWNER / MEMBER
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now())
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+}
+
+// 留言：文字 + 可选照片
+model Message {
+  id        String   @id @default(cuid())
+  boardId   String
+  authorId  String
+  content   String
+  imageUrl  String?  // 上传到服务器后的相对路径，如 /uploads/xxx.jpg
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board  Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // 留言墙按板 + 时间倒序翻页，这条索引直接对应那个查询
+  @@index([boardId, createdAt])
+}
+
+// 时间胶囊：到 unlockAt 之前，只有作者本人可见；到期后同板成员都可见
+model TimeCapsule {
+  id        String   @id @default(cuid())
+  boardId   String
+  authorId  String
+  title     String
+  content   String
+  imageUrl  String?
+  unlockAt  DateTime // 解锁日期
+  createdAt DateTime @default(now())
+
+  board  Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, unlockAt])
+}
+
+// 纪念日：属于某个留言板，同板成员可见
+model Anniversary {
+  id        String   @id @default(cuid())
+  boardId   String
+  title     String
+  date      DateTime
+  // 是否每年重复
+  yearly    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+}
