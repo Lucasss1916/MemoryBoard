@@ -3,7 +3,8 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 
 // 生产模式(standalone)下,Next 只服务构建时就在 public/ 里的文件,
-// 运行时上传的图片不会被静态服务,所以用这个路由从磁盘读取并返回。
+// 运行时上传的图片不会被静态服务,所以用这个路由从磁盘读取并返回原图。
+// (缩略图/低画质走单独的 /thumb 路由,避免与已存在的静态文件路径冲突。)
 const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/uploads';
 
 const MIME: Record<string, string> = {

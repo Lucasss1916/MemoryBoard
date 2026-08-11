@@ -23,11 +23,21 @@ export async function GET(req: NextRequest) {
   const limitRaw = Number(req.nextUrl.searchParams.get('limit') ?? '10');
   const limit = Math.min(Math.max(1, isNaN(limitRaw) ? 10 : limitRaw), 30);
 
+  // 可选:只看某个留言板;缩略图宽度
+  const boardId = req.nextUrl.searchParams.get('board') ?? undefined;
+  const thumbRaw = Number(req.nextUrl.searchParams.get('thumb') ?? '200');
+  const thumbWidth = Math.min(Math.max(64, isNaN(thumbRaw) ? 200 : thumbRaw), 800);
+
   // 把「用户实际访问的域名/协议」从请求头传给组装逻辑,确保 imageUrl 是能直接访问的绝对地址
-  const data = await buildWidgetData(user.id, limit, {
-    proto: req.headers.get('x-forwarded-proto') ?? undefined,
-    host: req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? undefined,
-  });
+  const data = await buildWidgetData(
+    user.id,
+    limit,
+    {
+      proto: req.headers.get('x-forwarded-proto') ?? undefined,
+      host: req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? undefined,
+    },
+    { boardId, thumbWidth }
+  );
 
   return NextResponse.json(
     { user: user.name, ...data },

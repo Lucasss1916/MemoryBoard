@@ -1,0 +1,7 @@
+{
+  "name": "memory-board",
+  "icon": "message.fill",
+  "color": "#E86A92",
+  "version": "1.0.0",
+  "description": "查看留言板的留言、时间胶囊与纪念日,可按留言板类型隔离筛选。"
+}

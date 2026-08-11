@@ -212,55 +212,62 @@
 也可以在服务器上装 Node 20 + Postgres，手动 `npm install && npm run build`，
 用 pm2 守护 `npm start`。细节见 DEVELOPMENT.md 的「方式 B」。
 
-## 📱 Scripting 小组件（接口已就绪）
+## 📱 Scripting 小组件 / 页面
 
-小组件只负责“读”——通过网页端接口拿数据展示，不做任何写入。
+小组件与页面只负责“读”——通过网页端接口拿数据展示，不做任何写入。
 
 ### 只读接口
 
-    GET /api/widget?token=<你的令牌>&limit=10
+    GET /api/widget?token=<你的令牌>&limit=20&board=<留言板ID>&thumb=200
 
-- 令牌在网页版「设置」页生成 / 复制 / 重置，一个账号一个令牌
-- 返回**该账号所有已加入留言板**里的最新留言 + 临近纪念日
-- 出于隐私：**不返回任何时间胶囊内容**；留言只给文本和“是否带图”，不外泄图片
+- `token`：在网页版「设置」页生成 / 复制 / 重置，一个账号一个令牌
+- `limit`：每类内容返回条数上限（1–30，默认 10）
+- `board`（可选）：只看某个留言板；**只有你是该板成员才生效**，否则返回空，绝不跨板泄露
+- `thumb`（可选）：缩略图宽度（64–800，默认 200）
+
+返回该账号可见范围内的：**最新留言 + 已解锁的时间胶囊 + 临近纪念日 + 可选留言板列表**。
+
+- **图片走缩略图**：每张图给 `imageUrl`（原图）和 `thumbUrl`（`/thumb/...?w=` 实时压出的小 webp），小组件用 `thumbUrl`，加载快、省流量
+- **时间胶囊隔离**：未解锁的胶囊只有作者本人能看到条目，且**不返回正文与图片**，只给标题和解锁时间；已解锁的才返回内容
+- 每条数据都带 `boardId` / `boardKind`（`LOVER`/`FAMILY`/`FRIEND`/`OTHER`），方便按留言板类型区分展示
 
 返回示例：
 
     {
       "user": "Alice",
-      "boards": ["我们俩"],
+      "boards": [{ "id": "b1", "name": "我们俩", "kind": "LOVER" }],
+      "selectedBoardId": null,
       "messages": [
-        { "board": "我们俩", "author": "Bob", "content": "我也是~", "hasImage": false, "createdAt": "2026-08-07T07:40:06.781Z" }
+        {
+          "board": "我们俩", "boardId": "b1", "boardKind": "LOVER",
+          "author": "Bob", "content": "我也是~", "hasImage": true,
+          "imageUrl": "https://your-domain.com/uploads/xxx.jpg",
+          "thumbUrl": "https://your-domain.com/thumb/xxx.jpg?w=200",
+          "createdAt": "2026-08-07T07:40:06.781Z"
+        }
+      ],
+      "capsules": [
+        { "board": "我们俩", "boardId": "b1", "boardKind": "LOVER", "author": "Bob",
+          "title": "一周年再看", "unlocked": false, "unlockAt": "2027-05-20T00:00:00.000Z",
+          "content": null, "hasImage": false, "imageUrl": null, "thumbUrl": null }
       ],
       "anniversaries": [
-        { "title": "在一起", "board": "我们俩", "date": "2024-05-20", "daysUntil": 286 }
+        { "title": "在一起", "board": "我们俩", "boardId": "b1", "boardKind": "LOVER",
+          "date": "2024-05-20", "daysUntil": 286 }
       ],
       "generatedAt": "2026-08-07T07:40:19.054Z"
     }
 
-### Scripting 示例脚本
+### Scripting 页面脚本
 
-在 Scripting App 里新建脚本，把 URL 换成你自己的：
+现成的 Scripting 项目在 `scripting/memory-board/`（`script.json` + `index.tsx`），把整个目录导入 Scripting App 即可：
 
-    const url = "https://your-domain.com/api/widget?token=你的令牌&limit=5"
-    const data = await fetch(url).then(r => r.json())
+- 首次运行点右上角 ⚙️，填服务端地址和令牌（存到私有 Storage）
+- 顶部下拉可选「全部」或某个特定留言板，实现**按板隔离查看**
+- 分区展示留言（带缩略图）、时间胶囊（未解锁显示 🔒 与解锁日期）、纪念日
+- 不同类型留言板用 emoji + 标签区分（💗恋人 / 🏠家人 / 🤝朋友 / 📌其它）
 
-    const nextAnn = data.anniversaries[0]
-    const latest = data.messages[0]
-
-    // 具体用 Scripting 的 Widget/View API 渲染，下面是取值示意：
-    const annText = nextAnn
-      ? `${nextAnn.title} 还有 ${nextAnn.daysUntil} 天`
-      : "暂无纪念日"
-    const msgText = latest
-      ? `${latest.author}：${latest.content}`
-      : "还没有留言"
-
-    console.log(annText)
-    console.log(msgText)
-
-> Scripting 的具体小组件排版 API 参见官方文档
-> https://scriptingapp.github.io/zh/llms-full.txt
+> Scripting 的 API 参见官方文档 https://scriptingapp.github.io/zh/llms-full.txt
 
 ## 🔐 安全说明
 
